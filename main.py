@@ -5,6 +5,8 @@ import telebot
 from bs4 import BeautifulSoup
 from geopy.geocoders import Nominatim
 
+# токены
+
 # tg bot
 bot = telebot.TeleBot("7927124560:AAEH8Np2jp5e3cvL_VNE_Zk-H6Y1DQtDImA")
 # yandex api
@@ -15,7 +17,7 @@ user_coordinates = {}
 geolocator = Nominatim(user_agent="weather_bot")
 
 
-# log
+# лог
 def log_message(user_id, message, is_bot=False):
     log_file = f"{user_id}.log"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -25,7 +27,7 @@ def log_message(user_id, message, is_bot=False):
         f.write(f"[{timestamp}] {sender}: {message}\n")
 
 
-# get cords
+# координаты, по умолчанию Кемерово
 def get_user_coordinates(message):
     user_id = message.from_user.id
     if user_coordinates:
@@ -36,6 +38,8 @@ def get_user_coordinates(message):
 
 
 # Функции для перевода значений из API
+
+# осадки
 def translate_condition(condition):
     conditions = {
         'NO_TYPE': 'нет осадков',
@@ -47,6 +51,19 @@ def translate_condition(condition):
     return conditions.get(condition, condition)
 
 
+# сила осадков
+def translate_prec(prec_strength):
+    prec = {
+        'ZERO': 'без осадков',
+        'WEAK': 'слабые осадки',
+        'AVERAGE': 'умеренные осадки',
+        'STRONG': 'сильные осадки',
+        'VERY_STRONG': 'очень сильные осадки'
+    }
+    return prec.get(prec_strength, 'неизвестная интенсивность')
+
+
+# направление ветра
 def translate_windir(wind_dir):
     directions = {
         'NORTH_WEST': 'северо-западный',
@@ -62,17 +79,7 @@ def translate_windir(wind_dir):
     return directions.get(wind_dir, wind_dir)
 
 
-def translate_prec(prec_strength):
-    prec = {
-        'ZERO': 'без осадков',
-        'WEAK': 'слабые осадки',
-        'AVERAGE': 'умеренные осадки',
-        'STRONG': 'сильные осадки',
-        'VERY_STRONG': 'очень сильные осадки'
-    }
-    return prec.get(prec_strength, 'неизвестная интенсивность')
-
-
+# транслит
 def transliterate(text):
     translit_map = {
         'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e',
@@ -98,22 +105,23 @@ def transliterate(text):
 def send_welcome(message):
     user_id = message.from_user.id
     welcome_text = (
-        "Привет! Я бот для прогноза погоды.\n"
-        "По умолчанию показывается погода для кемерово.\n"
-        "Доступные команды:\n"
-        "/current - Текущая погода\n"
-        "/forecast - Прогноз погоды на неделю\n"
-        "Осторожно, длинное сообщение!\n"
-        "/scrape - скрапинг погоды\n"
-        "/position - указать новую позицию\n"
-        "/history - История ваших запросов"
+        "🌤 Привет! Я бот для прогноза погоды.\n"
+        "📍 По умолчанию показывается погода для кемерово.\n"
+        "📝 Доступные команды:\n"
+        "🌡 /current - Текущая погода\n"
+        "📅 /forecast - Прогноз погоды на неделю\n"
+        "⚠️ Осторожно, длинное сообщение!\n"
+        "🕷 /scrape - скрапинг погоды\n"
+        "🌍 /position - указать новую позицию\n"
+        "📜 /history - История ваших запросов\n"
+        "👇 также снизу есть кнопка меню, там можно выбрать одну из доступных команд"
     )
     bot.reply_to(message, welcome_text)
     log_message(user_id, "/start")
     log_message(user_id, welcome_text, is_bot=True)
 
 
-# weather now
+# /current
 @bot.message_handler(commands=['current'])
 def get_current_weather(message):
     user_id = message.from_user.id
@@ -146,7 +154,7 @@ def get_current_weather(message):
         now = data['data']['weatherByPoint']['now']
 
         weather_info = (
-            f"Текущая погода в {city}:\n"
+            f"🌤️ Текущая погода в {city}:\n"
             f"🌡 Температура: {now['temperature']}°C\n"
             f"💧 Влажность: {now['humidity']}%\n"
             f"📊 Давление: {now['pressure']} мм рт.ст.\n"
@@ -157,12 +165,12 @@ def get_current_weather(message):
         bot.reply_to(message, weather_info)
         log_message(user_id, weather_info, is_bot=True)
     except Exception as e:
-        error_msg = f"Ошибка при запросе погоды: {str(e)}"
+        error_msg = f"❌ Ошибка при запросе погоды: {str(e)}"
         bot.reply_to(message, error_msg)
         log_message(user_id, error_msg, is_bot=True)
 
 
-# on week
+# /forecast
 @bot.message_handler(commands=['forecast'])
 def get_weather_forecast(message):
     user_id = message.from_user.id
@@ -231,7 +239,7 @@ def get_weather_forecast(message):
         data = response.json()
         days = data['data']['weatherByPoint']['forecast']['days']
 
-        forecast_info = f"Прогноз погоды на неделю  в {city}:\n"
+        forecast_info = f"🌦️ Прогноз погоды на неделю  в {city}:\n"
 
         for day in days:
             forecast_info += "-------------------------------------\n"
@@ -258,21 +266,25 @@ def get_weather_forecast(message):
         bot.reply_to(message, forecast_info)
         log_message(user_id, forecast_info, is_bot=True)
     except Exception as e:
-        error_msg = f"Ошибка при запросе прогноза: {str(e)}"
+        error_msg = f"❌ Ошибка при запросе прогноза: {str(e)}"
         bot.reply_to(message, error_msg)
         log_message(user_id, error_msg, is_bot=True)
 
 
+# скрапинг
 @bot.message_handler(commands=['scrape'])
 def parse_weather(message):
+    user_id = message.from_user.id
     try:
         scraped_info = parse_meteoservice_weather(message)
         bot.reply_to(message, scraped_info)
-        log_message(message.from_user.id, scraped_info, is_bot=True)
+        log_message(user_id, scraped_info, is_bot=True)
     except Exception as e:
-        print(e)
+        error_msg = f"❌ Ошибка при скрапинге: {str(e)}"
+        bot.reply_to(message, error_msg)
+        log_message(user_id, error_msg, is_bot=True)
 
-
+# скрапинг метео сервиса
 def parse_meteoservice_weather(message):
     user_id = message.from_user.id
     log_message(user_id, "/scrape")
@@ -302,8 +314,8 @@ def parse_meteoservice_weather(message):
     condition = condition_row.find_next('p', class_='margin-bottom-0').get_text(strip=True)
 
     return (f"🌤 В {city} сейчас {temp}C\n"
-            f"Ощущается как {feels_like_temp}C\n"
-            f"Облачность: {condition}\n")
+            f"🌡️ Ощущается как {feels_like_temp}C\n"
+            f"☁️ Облачность: {condition}\n")
 
 
 # /position
@@ -317,7 +329,7 @@ def handle_position(message):
 
     bot.send_message(
         message.chat.id,
-        "Нажмите на кнопку, чтобы отправить своё местоположение или введите свой город вручную:",
+        "📍 Нажмите на кнопку, чтобы отправить своё местоположение или ✏️ введите свой город вручную:",
         reply_markup=markup
     )
 
@@ -335,10 +347,10 @@ def process_position_input(message):
             city = location.raw.get('address', {}).get('city', 'вашем местоположении')
 
             response = (
-                f"Координаты вашего местоположения:\n"
-                f"Широта: {lat}\n"
-                f"Долгота: {lon}\n"
-                f"Город: {city}"
+                f"📍 Координаты вашего местоположения:\n"
+                f"• Широта: {lat}\n"
+                f"• Долгота: {lon}\n"
+                f"🏙️ Город: {city}"
             )
 
             user_coordinates[user_id] = (lat, lon, city)
@@ -352,19 +364,19 @@ def process_position_input(message):
                 lon = location.longitude
 
                 response = (
-                    f"Координаты для города {city}:\n"
-                    f"Широта: {lat}\n"
-                    f"Долгота: {lon}\n"
-                    f"Адрес: {location.address}"
+                    f"🌍 Координаты для города {city}:\n"
+                    f"• Широта: {lat}\n"
+                    f"• Долгота: {lon}\n"
+                    f"🏠 Адрес: {location.address}"
                 )
 
                 user_coordinates[user_id] = (lat, lon, city)
             else:
-                response = f"Не удалось найти город '{city}'. Попробуйте ещё раз."
+                response = f"❌ Не удалось найти город '{city}'. Попробуйте ещё раз."
                 bot.register_next_step_handler(message, process_position_input)
                 return
         else:
-            response = "Ошибка. Введите название города."
+            response = "🚨 Ошибка. Введите название города."
             bot.register_next_step_handler(message, process_position_input)
             return
 
@@ -372,7 +384,7 @@ def process_position_input(message):
         log_message(user_id, response, is_bot=True)
 
     except Exception as e:
-        error_msg = f"Произошла ошибка: {str(e)}"
+        error_msg = f"❌ Произошла ошибка: {str(e)}"
         bot.send_message(message.chat.id, error_msg)
         log_message(user_id, error_msg, is_bot=True)
 
@@ -390,16 +402,15 @@ def show_history(message):
             with open(log_file, "r", encoding="utf-8") as f:
                 history = f.read()
 
-            # Отправляем последние 10 строк истории
             last_lines = "\n".join(history.split("\n")[-10:])
-            bot.reply_to(message, f"Последние записи в истории:\n{last_lines}")
-            log_message(user_id, "Показана история запросов", is_bot=True)
+            bot.reply_to(message, f"📜 Последние записи в истории:\n{last_lines}")
+            log_message(user_id, "📜 Показана история запросов", is_bot=True)
         except Exception as e:
-            error_msg = f"Ошибка при чтении истории: {str(e)}"
+            error_msg = f"❌ Ошибка при чтении истории: {str(e)}"
             bot.reply_to(message, error_msg)
             log_message(user_id, error_msg, is_bot=True)
     else:
-        no_history_msg = "История запросов пока пуста."
+        no_history_msg = "🕳️ История запросов пока пуста."
         bot.reply_to(message, no_history_msg)
         log_message(user_id, no_history_msg, is_bot=True)
 
@@ -410,7 +421,7 @@ def echo_all(message):
     user_id = message.from_user.id
     log_message(user_id, message.text)
 
-    reply_text = "Извините, я не понимаю. Используйте одну из команд: /start, /current, /forecast, /scrape, /position, /history"
+    reply_text = "🤖 Извините, я не понимаю. Используйте одну из команд: /start, /current, /forecast, /scrape, /position, /history"
     bot.reply_to(message, reply_text)
     log_message(user_id, reply_text, is_bot=True)
 
